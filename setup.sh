@@ -162,7 +162,7 @@ export tanggal=`date -d "0 days" +"%d-%m-%Y - %X" `
 export OS_Name=$( cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/PRETTY_NAME//g' | sed 's/=//g' | sed 's/"//g' )
 export Kernel=$( uname -r )
 export Arch=$( uname -m )
-export IP=$( curl -s https://ipinfo.io/ip/ )
+export IP=$( curl -sS ipv4.icanhazip.com )
 function first_setup(){
 timedatectl set-timezone Asia/Jakarta
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
@@ -172,17 +172,11 @@ if [[ $(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g
 echo "Setup Dependencies $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
 sudo apt update -y
 apt-get install --no-install-recommends software-properties-common
-add-apt-repository ppa:vbernat/haproxy-2.0 -y
-apt-get -y install haproxy=2.0.\*
+apt-get -y install haproxy
 elif [[ $(cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g') == "debian" ]]; then
 echo "Setup Dependencies For OS Is $(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')"
-curl https://haproxy.debian.net/bernat.debian.org.gpg |
-gpg --dearmor >/usr/share/keyrings/haproxy.debian.net.gpg
-echo deb "[signed-by=/usr/share/keyrings/haproxy.debian.net.gpg]" \
-http://haproxy.debian.net buster-backports-1.8 main \
->/etc/apt/sources.list.d/haproxy.list
 sudo apt-get update
-apt-get -y install haproxy=1.8.\*
+apt-get -y install haproxy
 else
 echo -e " Your OS Is Not Supported ($(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g') )"
 exit 1
@@ -204,29 +198,33 @@ function base_package() {
 clear
 print_install "Menginstall Packet Yang Dibutuhkan"
 apt install at -y
-apt install zip pwgen openssl netcat socat cron bash-completion -y
+apt install zip pwgen openssl socat cron bash-completion -y
 apt install figlet -y
-apt update -y
-apt upgrade -y
 apt dist-upgrade -y
-systemctl enable chronyd
-systemctl restart chronyd
-systemctl enable chrony
-systemctl restart chrony
-chronyc sourcestats -v
-chronyc tracking -v
 apt install ntpdate -y
 ntpdate pool.ntp.org
-apt install sudo -y
 sudo apt-get clean all
 sudo apt-get autoremove -y
-sudo apt-get install -y debconf-utils
+sudo apt-get install -y debconf-utils util-linux bsdmainutils
 sudo apt-get remove --purge exim4 -y
-sudo apt-get remove --purge ufw firewalld -y
+sudo apt-get remove --purge ufw firewalld apache2 -y
 sudo apt-get install -y --no-install-recommends software-properties-common
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-sudo apt-get install -y speedtest-cli vnstat libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev libcap-ng-utils libselinux1-dev libcurl4-nss-dev flex bison make libnss3-tools libevent-dev bc rsyslog dos2unix zlib1g-dev libssl-dev libsqlite3-dev sed dirmngr libxml-parser-perl build-essential gcc g++ python htop lsof tar wget curl ruby zip unzip p7zip-full python3-pip libc6 util-linux build-essential msmtp-mta ca-certificates bsd-mailx iptables iptables-persistent netfilter-persistent net-tools openssl ca-certificates gnupg gnupg2 ca-certificates lsb-release gcc shc make cmake git screen socat xz-utils apt-transport-https gnupg1 dnsutils cron bash-completion ntpdate chrony jq openvpn easy-rsa
+apt-get -y install \
+  gawk iptables iptables-persistent netfilter-persistent figlet ruby libxml-parser-perl \
+  squid nmap screen curl jq bzip2 gzip coreutils rsyslog iftop htop zip unzip net-tools \
+  sed gnupg gnupg1 bc apt-transport-https build-essential dirmngr libxml-parser-perl \
+  neofetch lsof openssl openvpn easy-rsa fail2ban tmux socat cron bash-completion \
+  ntpdate xz-utils gnupg2 dnsutils lsb-release chrony libnss3-dev libnspr4-dev pkg-config libpam0g-dev \
+  libcap-ng-dev libcap-ng-utils libselinux1-dev libcurl4-openssl-dev flex bison make \
+  libnss3-tools libevent-dev xl2tpd apt git speedtest-cli p7zip-full libjpeg-dev \
+  zlib1g-dev python3-full shc build-essential nodejs nginx php \
+  php-fpm php-cli php-mysql p7zip-full squid libcurl4-openssl-dev lsb-release 
+apt purge -y apache2 stunnel4 stunnel
+sudo systemctl enable chrony --now
+chronyc sourcestats -v
+chronyc tracking -v
 print_success "Packet Yang Dibutuhkan"
 }
 clear
@@ -253,7 +251,7 @@ read -p "   INPUT YOUR DOMAIN :   " host1
 echo "IP=${host1}" >> /var/lib/kyt/ipvps.conf
 echo $host1 > /etc/xray/domain
 echo $host1 > /root/domain
-echo ".::. SANGGAR PREMIUM .::." > /etc/xray/username
+echo ".::. ALWARI STORE .::." > /etc/xray/username
 echo ""
 elif [[ $host == "2" ]]; then
 wget ${REPO}Fls/cf.sh && chmod +x cf.sh && ./cf.sh
@@ -543,8 +541,6 @@ print_install "Menginstall Dropbear"
 apt-get install dropbear -y 
 wget -q -O /etc/default/dropbear "${REPO}Cfg/dropbear.conf"
 chmod +x /etc/default/dropbear
-/etc/init.d/dropbear restart
-/etc/init.d/dropbear status
 print_success "Dropbear"
 }
 clear
@@ -631,12 +627,6 @@ print_success "Swap 1 G"
 function ins_Fail2ban(){
 clear
 print_install "Menginstall Fail2ban"
-if [ -d '/usr/local/ddos' ]; then
-echo; echo; echo "Please un-install the previous version first"
-exit 0
-else
-mkdir /usr/local/ddos
-fi
 clear
 echo "Banner /etc/banner.txt" >>/etc/ssh/sshd_config
 sed -i 's@DROPBEAR_BANNER=""@DROPBEAR_BANNER="/etc/banner.txt"@g' /etc/default/dropbear
@@ -744,7 +734,7 @@ clear
 print_install "MEMASANG NOOBZVPNS"
 cd
 apt install git -y
-git clone https://github.com/Ronyart12/noobzvpn.git
+git clone https://github.com/Sotgen/noobzvpn.git
 cd noobzvpn/
 chmod +x install.sh
 ./install.sh
