@@ -542,6 +542,8 @@ print_install "Menginstall Dropbear"
 apt-get install dropbear -y 
 wget -q -O /etc/default/dropbear "${REPO}Cfg/dropbear.conf"
 chmod +x /etc/default/dropbear
+echo "ALWARI STORE" > /etc/handeling
+echo "green" >> /etc/handeling
 print_success "Dropbear"
 }
 clear
