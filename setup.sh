@@ -1,4 +1,6 @@
 #!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 apt install -y
 apt upgrade -y
 apt update -y
@@ -30,7 +32,7 @@ clear
 clear && clear && clear
 clear;clear;clear
 echo -e "${YELLOW}----------------------------------------------------------${NC}"
-echo -e "\033[96;1m              WELCOME TO SRICPT SANGGAR              \033[0m"
+echo -e "\033[96;1m              WELCOME TO SRICPT ALAWI              \033[0m"
 echo -e "${YELLOW}----------------------------------------------------------${NC}"
 echo ""
 sleep 3
