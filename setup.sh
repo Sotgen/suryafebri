@@ -782,6 +782,7 @@ print_success "All Packet"
 function menu(){
 clear
 print_install "Memasang Menu Packet"
+apt install p7zip-full -y
 wget ${REPO}Cdy/menu.zip
 wget -q -O /usr/bin/enc "https://raw.githubusercontent.com/Sotgen/suryafebri/main/Enc/encrypt" ; chmod +x /usr/bin/enc
 7z x -pas123@Newbie menu.zip
