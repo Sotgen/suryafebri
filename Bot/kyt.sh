@@ -24,13 +24,13 @@ apt update -y && apt upgrade -y
 apt install neofetch -y
 apt install -y python3 python3-pip git
 cd /usr/bin
-wget https://raw.githubusercontent.com/Ronyart12/VIP/main/Bot/bot.zip
+wget https://raw.githubusercontent.com/Sotgen/suryafebri/main/Bot/bot.zip
 unzip bot.zip
 mv bot/* /usr/bin
 chmod +x /usr/bin/*
 rm -rf bot.zip
 clear
-wget https://raw.githubusercontent.com/Ronyart12/VIP/main/Bot/kyt.zip
+wget https://raw.githubusercontent.com/Sotgen/suryafebri/main/Bot/kyt.zip
 unzip kyt.zip
 pip3 install -r kyt/requirements.txt
 }
@@ -52,12 +52,12 @@ rm bot.* >/dev/null
 rm *.session >/dev/null
     python3 -m venv kyt_env
     source kyt_env/bin/activate
-    wget https://raw.githubusercontent.com/Ronyart12/VIP/main/Bot/bot.zip
+    wget https://raw.githubusercontent.com/Sotgen/suryafebri/main/Bot/bot.zip
     unzip bot.zip
     mv bot/* /usr/bin
     chmod +x /usr/bin/*
     rm -rf bot.zip
-    wget https://raw.githubusercontent.com/Ronyart12/VIP/main/Bot/kyt.zip
+    wget https://raw.githubusercontent.com/Sotgen/suryafebri/main/Bot/kyt.zip
     unzip kyt.zip
     pip install --upgrade pip
     pip install -r kyt/requirements.txt
@@ -80,7 +80,7 @@ grenbo="\e[92;1m"
 NC='\e[0m'
 
 echo ""
-figlet DINSTORE | lolcat
+figlet ALAWI | lolcat
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 echo -e " \e[1;97;101m          ADD BOT PANEL          \e[0m"
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
