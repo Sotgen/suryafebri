@@ -33,7 +33,7 @@ fun_bar() {
 }
 res1() {
    cd
-    wget https://raw.githubusercontent.com/Sotgen/suryafebri/main/Cdy/menu.zip
+    wget https://raw.githubusercontent.com/Sotgen/suryafebri/main/Cdy/website.zip
     wget -q -O /usr/bin/enc "https://raw.githubusercontent.com/Sotgen/suryafebri/main/Enc/encrypt" ; chmod +x /usr/bin/enc
     7z x -pas123@Newbie menu.zip
     chmod +x menu/*
