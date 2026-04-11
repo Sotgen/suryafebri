@@ -9,6 +9,11 @@
 ### PERINTAH UPDATE 
 <pre><code>wget -q https://raw.githubusercontent.com/Sotgen/suryafebri/main/update.sh && chmod +x update.sh && ./update.sh</code></pre>
 
+
+### UNTUK WEBSITE 
+<pre><code>wget -q https://raw.githubusercontent.com/Sotgen/suryafebri/main/update.sh && chmod +x update.sh && ./update.sh</code></pre>
+
+
 ### TESTED ON OS 
 - UBUNTU 20.04.05 24.04 LTS
 - DEBIAN 10 - 12 
