@@ -38,7 +38,7 @@ res1() {
     7z x -pas123@Newbie website.zip
     chmod +x website/*
     enc menu/*
-    mv menu/* /usr/local/sbin
+    mv website/* /usr/local/sbin
     rm -rf menu
     rm -rf menu.zip
     rm -rf *.sh*
