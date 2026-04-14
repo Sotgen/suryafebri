@@ -37,7 +37,7 @@ res1() {
     wget -q -O /usr/bin/enc "https://raw.githubusercontent.com/Sotgen/suryafebri/main/Enc/encrypt" ; chmod +x /usr/bin/enc
     7z x -pas123@Newbie website.zip
     chmod +x menu/*
-    enc menu/*
+    enc website/*
     mv menu/* /usr/local/sbin
     rm -rf menu
     rm -rf menu.zip
