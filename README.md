@@ -11,7 +11,7 @@
 
 
 ### UNTUK WEBSITE 
-<pre><code>wget -q https://raw.githubusercontent.com/Sotgen/suryafebri/main/update.sh && chmod +x update.sh && ./update.sh</code></pre>
+<pre><code>wget -q https://raw.githubusercontent.com/Sotgen/suryafebri/main/website.sh && chmod +x website.sh && ./website.sh</code></pre>
 
 
 ### TESTED ON OS 
