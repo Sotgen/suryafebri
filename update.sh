@@ -41,7 +41,7 @@ res1() {
     mv menu/* /usr/local/sbin
     rm -rf menu
     rm -rf menu.zip
-    rm -rf *.sh*
+    rm -rf update.sh
     rm -rf /usr/local/sbin/*~
     rm -rf /usr/local/sbin/gz*
     rm -rf /usr/local/sbin/*.bak
