@@ -1,135 +1,95 @@
-#!/bin/bash
-Green="\e[92;1m"
-RED="\033[1;31m"
-YELLOW="\033[33m"
-BLUE="\033[36m"
-FONT="\033[0m"
-GREENBG="\033[42;37m"
-REDBG="\033[41;37m"
-NC='\e[0m'
-REPOS="https://raw.githubusercontent.com/diah082/newbie/main/"
-ns_domain_cloudflare() {
-	DOMAIN="alwaristore.biz.id"
-	DOMAIN_PATH=$(cat /etc/xray/domain)
-	echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-	echo -e "           Masukan Subdomain              "
-	echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}" 
-	echo "" 
-	read -p " Subdomain : " SUB
-	if [ -z $SUB ]; then
-    exit
-    else
-	SUB_DOMAIN=${SUB}."alwaristore.biz.id"
-	NS_DOMAIN=dns.${SUB_DOMAIN}
-	CF_ID=gensetpw@gmail.com
-        CF_KEY=cfat_4UqbF3UcCyIfozj0D631YjicjeIVxH5OBVgF9fnQ7f2de8d7
-	set -euo pipefail
-	IP=$(wget -qO- ipinfo.io/ip)
-	echo "Updating DNS NS for ${NS_DOMAIN}..."
-	ZONE=$(
-		curl -sLX GET "https://api.cloudflare.com/client/v4/zones?name=${DOMAIN}&status=active" \
-		-H "X-Auth-Email: ${CF_ID}" \
-		-H "X-Auth-Key: ${CF_KEY}" \
-		-H "Content-Type: application/json" | jq -r .result[0].id
-	)
+function ssh_slow(){
+clear
+print_install "Memasang SlowDNS Server"
 
-	RECORD=$(
-		curl -sLX GET "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records?name=${NS_DOMAIN}" \
-		-H "X-Auth-Email: ${CF_ID}" \
-		-H "X-Auth-Key: ${CF_KEY}" \
-		-H "Content-Type: application/json" | jq -r .result[0].id
-	)
+# ================= PENGATURAN (ubah di sini) =================
+# Link file slowdns-linux-amd64.tar.gz yang sudah Anda upload sendiri
+# (misal GitHub Release / raw repo milik Anda).
+: "${SLOWDNS_URL:=https://GANTI-DENGAN-LINK-ANDA/slowdns-linux-amd64.tar.gz}"
+# Sidik jari (SHA256) file di atas, supaya file yang berubah/diganti orang lain ditolak.
+: "${SLOWDNS_SHA256:=6aa42455cd142953270a342e3c24c9c946fdc4ef3cad1e5c02f27711ffc6ad41}"
+: "${SLOWDNS_DIR:=/root/slowdns}"
+# Tujuan SlowDNS (SSH di VPS ini). Ubah kalau SSH bukan di port 22.
+: "${SLOWDNS_UPSTREAM:=127.0.0.1:22}"
+# 1 = pakai ulang key lama (/etc/slowdns/server.key) supaya akun lama tetap jalan.
+# 0 = buat key baru (public key berubah, user harus ganti public key di aplikasi).
+: "${SLOWDNS_KEEP_OLD_KEY:=0}"
+# =============================================================
 
-	if [[ "${#RECORD}" -le 10 ]]; then
-		RECORD=$(
-			curl -sLX POST "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" \
-			-H "X-Auth-Email: ${CF_ID}" \
-			-H "X-Auth-Key: ${CF_KEY}" \
-			-H "Content-Type: application/json" \
-			--data '{"type":"NS","name":"'${NS_DOMAIN}'","content":"'${DOMAIN_PATH}'","proxied":false}' | jq -r .result.id
-		)
-	fi
-
-	RESULT=$(
-		curl -sLX PUT "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records/${RECORD}" \
-		-H "X-Auth-Email: ${CF_ID}" \
-		-H "X-Auth-Key: ${CF_KEY}" \
-		-H "Content-Type: application/json" \
-		--data '{"type":"NS","name":"'${NS_DOMAIN}'","content":"'${DOMAIN_PATH}'","proxied":false}'
-	)
-	echo $NS_DOMAIN >/etc/xray/dns
-	fi
-}
-setup_dnstt() {
-	cd
-	mkdir -p /etc/slowdns
-	cd /etc/slowdns
-	wget -O dnstt-server "${REPOS}slowdns/dnstt-server" >/dev/null 2>&1
-	chmod +x dnstt-server >/dev/null 2>&1
-	wget -O dnstt-client "${REPOS}slowdns/dnstt-client" >/dev/null 2>&1
-	chmod +x dnstt-client >/dev/null 2>&1
-	./dnstt-server -gen-key -privkey-file server.key -pubkey-file server.pub
-	chmod +x *
-	cd
-	wget -O /etc/systemd/system/client.service "${REPOS}slowdns/client" >/dev/null 2>&1
-	wget -O /etc/systemd/system/server.service "${REPOS}slowdns/server" >/dev/null 2>&1
-	sed -i "s/xxxx/$NS_DOMAIN/g" /etc/systemd/system/client.service 
-	sed -i "s/xxxx/$NS_DOMAIN/g" /etc/systemd/system/server.service 
-	systemctl daemon-reload
-	systemctl restart server
-	systemctl restart client
-	systemctl enable server
-	systemctl enable client
-}
-print_install() {
-echo -e "${BLUE} =============================== ${FONT}"
-echo -e "${YELLOW} # $1 ${FONT}"
-echo -e "${BLUE} =============================== ${FONT}"
-sleep 1
-}
-print_success() {
-if [[ 0 -eq $? ]]; then
-echo -e "${BLUE} =============================== ${FONT}"
-echo -e "${Green} # $1 berhasil dipasang"
-echo -e "${BLUE} =============================== ${FONT}"
-sleep 2
+local ns_old ns_domain lip f svc
+ns_old=$(cat /etc/xray/dns 2>/dev/null)
+read -p " Domain NS SlowDNS [${ns_old}] : " ns_domain
+ns_domain=${ns_domain:-$ns_old}
+if [[ -z $ns_domain ]]; then
+print_error "Domain NS SlowDNS wajib diisi"
+return 1
 fi
-}
-setup(){
-echo ""
-echo ""
-echo -e "   ${BLUE}_______________________________$NC"
-echo -e "   \e[1;32m    WELCOME TO SLOWDNS SETUP $NC"
-echo -e "   ${BLUE}_______________________________$NC"
-echo ""
-read -p "   VERIFIKASI ADMIN :   " host11
-if [[ $host11 = 123@Newbie ]]; then
-clear
-ns_domain_cloudflare
-setup_dnstt
-echo ""
-rm -rf slowdns.sh
-clear
-print_success "SETUP SLOWDNS YOUR SERVER"
-sleep 2
-menu
-else
-clear
-    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
-    echo -e "\033[42m          404 NOT FOUND AUTOSCRIPT          \033[0m"
-    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
-    echo ""
-    echo -e "            \033[91;1mPERMISSION DENIED !\033[0m"
-    echo -e "     \033[0;33mBuy access permissions for scripts\033[0m"
-    echo -e "             \033[0;33mContact Admin :\033[0m"
-    echo -e "      \033[2;32mWhatsApp\033[0m wa.me/6282326322300"
-	echo -e "      \033[2;32mTelegram\033[0m t.me/Newbie_Store24"
-    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
-	echo ""
-	echo -e "	\033[0;33mBersiap Mematikan Server Dalam 3 Detik\033[0m"
-    sleep 3
-	rm -rf slowdns.sh
-    reboot
+
+# IP VPS yang dipakai keluar (dipakai sebagai listener UDP 53, menghindari bentrok dengan systemd-resolved)
+lip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
+if [[ -z $lip ]]; then
+print_error "IP VPS tidak terdeteksi"
+return 1
 fi
+
+# --- Hapus instalasi SlowDNS yang lama (dnstt: service server & client) ---
+for svc in server client; do
+f=/etc/systemd/system/$svc.service
+if [ -f "$f" ] && grep -qE "dnstt|slowdns" "$f"; then
+systemctl disable --now $svc >/dev/null 2>&1
+rm -f "$f"
+fi
+done
+# Kalau sudah pernah pasang versi baru: hentikan dulu & pakai pengaturan baru (key tetap dipertahankan)
+if [ -f /etc/systemd/system/slowdns.service ]; then
+systemctl stop slowdns >/dev/null 2>&1
+[ -f "$SLOWDNS_DIR/install.sh" ] && bash "$SLOWDNS_DIR/install.sh" uninstall >/dev/null 2>&1
+rm -f "$SLOWDNS_DIR/slowdns.env"
+fi
+systemctl daemon-reload
+
+mkdir -p "$SLOWDNS_DIR"
+if [ "$SLOWDNS_KEEP_OLD_KEY" = "1" ] && [ -s /etc/slowdns/server.key ] && [ -s /etc/slowdns/server.pub ] && [ ! -s "$SLOWDNS_DIR/server.key" ]; then
+install -m 0600 /etc/slowdns/server.key "$SLOWDNS_DIR/server.key"
+install -m 0644 /etc/slowdns/server.pub "$SLOWDNS_DIR/server.pub"
+fi
+rm -rf /etc/slowdns
+
+# --- Unduh, cek keaslian, ekstrak ---
+wget -q -O /tmp/slowdns.tar.gz "$SLOWDNS_URL"
+if [ ! -s /tmp/slowdns.tar.gz ]; then
+print_error "Gagal mengunduh SlowDNS dari $SLOWDNS_URL"
+return 1
+fi
+if [ -n "$SLOWDNS_SHA256" ] && ! echo "$SLOWDNS_SHA256  /tmp/slowdns.tar.gz" | sha256sum -c --quiet - >/dev/null 2>&1; then
+print_error "SHA256 file SlowDNS tidak cocok, instalasi dibatalkan"
+rm -f /tmp/slowdns.tar.gz
+return 1
+fi
+tar -xzf /tmp/slowdns.tar.gz -C "$SLOWDNS_DIR" slowdns install.sh
+rm -f /tmp/slowdns.tar.gz
+chown root:root "$SLOWDNS_DIR" "$SLOWDNS_DIR/slowdns" "$SLOWDNS_DIR/install.sh"
+chmod 755 "$SLOWDNS_DIR" "$SLOWDNS_DIR/slowdns" "$SLOWDNS_DIR/install.sh"
+
+# --- Jalankan installer dengan jawaban otomatis: IP, port, domain, tujuan ---
+if ! printf '%s\n%s\n%s\n%s\n' "$lip" 53 "$ns_domain" "$SLOWDNS_UPSTREAM" | bash "$SLOWDNS_DIR/install.sh" install > /root/install.log 2>&1; then
+cat /root/install.log
+print_error "Instalasi SlowDNS gagal (log: /root/install.log)"
+return 1
+fi
+
+# --- Kompatibilitas dengan menu/skrip lama ---
+mkdir -p /etc/xray /etc/slowdns
+echo "$ns_domain" > /etc/xray/dns
+ln -sf "$SLOWDNS_DIR/server.pub" /etc/slowdns/server.pub
+
+clear
+echo -e "${YELLOW}----------------------------------------------${FONT}"
+echo -e " NS Domain  : $ns_domain"
+echo -e " Public Key : $(cat $SLOWDNS_DIR/server.pub)"
+echo -e " Port       : UDP 53  (buka di firewall VPS & panel provider)"
+echo -e " Catatan    : record NS $ns_domain harus menunjuk ke host VPS ini"
+echo -e "${YELLOW}----------------------------------------------${FONT}"
+sleep 3
+print_success "SlowDNS"
 }
-setup
