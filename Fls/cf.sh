@@ -6,7 +6,7 @@ echo -e ""
 echo -e "\033[96;1m============================\033[0m"
 echo -e "\033[95;1m      INPUT SUBDOMAIN  \033[0m"
 echo -e "\033[96;1m============================\033[0m"
-echo -e "\033[91;1m Note. Pilih salah satu domain :\033[0m \033[93m 1. vpnnewbie.my.id  2. newbie-store.my.id\033[0m"
+echo -e "\033[91;1m Note. Pilih salah satu domain :\033[0m \033[93m 1. alwaristore.biz.id  2. suryaconfig.biz.id\033[0m"
 echo -e "\033[91;1m Note. contoh Subdomain :\033[0m \033[93m Newbie \033[0m"
 read -p "PILIH DOMAIN    :  " DO
 echo -e " "
@@ -16,7 +16,7 @@ read -p "IP		         :  " IP
 echo -e ""
 SUB_DOMAIN=${SUB}.${DO}
 NS_DOMAIN=*.${SUB_DOMAIN}
-CF_KEY=iDwySXpbf_FOptfD10rjNiCRyPIXDpJWbJHRMYjm
+CF_KEY=cfat_4UqbF3UcCyIfozj0D631YjicjeIVxH5OBVgF9fnQ7f2de8d7
 set -euo pipefail
 echo "Pointing Domain for $SUB_DOMAIN..."
 ZONE=$(
