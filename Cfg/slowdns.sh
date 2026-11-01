@@ -3,9 +3,8 @@ clear
 print_install "Memasang SlowDNS Server"
 
 # ================= PENGATURAN (ubah di sini) =================
-# Link file slowdns-linux-amd64.tar.gz yang sudah Anda upload sendiri
-# (misal GitHub Release / raw repo milik Anda).
-: "${SLOWDNS_URL:=https://GANTI-DENGAN-LINK-ANDA/slowdns-linux-amd64.tar.gz}"
+# File slowdns-linux-amd64.tar.gz di root repo Anda (${REPO} = .../Sotgen/suryafebri/main/).
+: "${SLOWDNS_URL:=${REPO}slowdns-linux-amd64.tar.gz}"
 # Sidik jari (SHA256) file di atas, supaya file yang berubah/diganti orang lain ditolak.
 : "${SLOWDNS_SHA256:=6aa42455cd142953270a342e3c24c9c946fdc4ef3cad1e5c02f27711ffc6ad41}"
 : "${SLOWDNS_DIR:=/root/slowdns}"
@@ -16,14 +15,30 @@ print_install "Memasang SlowDNS Server"
 : "${SLOWDNS_KEEP_OLD_KEY:=0}"
 # =============================================================
 
-local ns_old ns_domain lip f svc
+local ns_old ns_domain lip f svc ganti
 ns_old=$(cat /etc/xray/dns 2>/dev/null)
-read -p " Domain NS SlowDNS [${ns_old}] : " ns_domain
-ns_domain=${ns_domain:-$ns_old}
-if [[ -z $ns_domain ]]; then
-print_error "Domain NS SlowDNS wajib diisi"
-return 1
+ns_domain=""
+echo -e ""
+echo -e "${YELLOW}----------------------------------------------${FONT}"
+echo -e "              DOMAIN NS SLOWDNS"
+echo -e "${YELLOW}----------------------------------------------${FONT}"
+if [[ -n $ns_old ]]; then
+echo -e " Domain NS saat ini : $ns_old"
+read -p " Ganti domain NS? [y/N] : " ganti
+if [[ $ganti != "y" && $ganti != "Y" ]]; then
+ns_domain=$ns_old
 fi
+fi
+if [[ -z $ns_domain ]]; then
+while true; do
+read -p " Masukkan domain NS baru (contoh: dns.domainanda.com) : " ns_domain
+if [[ $ns_domain =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ ]]; then
+break
+fi
+print_error "Domain tidak valid, coba lagi"
+done
+fi
+echo -e " Domain NS dipakai  : $ns_domain"
 
 # IP VPS yang dipakai keluar (dipakai sebagai listener UDP 53, menghindari bentrok dengan systemd-resolved)
 lip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
