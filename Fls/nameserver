@@ -136,9 +136,9 @@ chown root:root "$SLOWDNS_DIR" "$SLOWDNS_DIR/slowdns" "$SLOWDNS_DIR/install.sh"
 chmod 755 "$SLOWDNS_DIR" "$SLOWDNS_DIR/slowdns" "$SLOWDNS_DIR/install.sh"
 
 # --- Jalankan installer dengan jawaban otomatis: IP, port, domain, tujuan ---
-if ! printf '%s\n%s\n%s\n%s\n' "$lip" 53 "$ns_domain" "$SLOWDNS_UPSTREAM" | bash "$SLOWDNS_DIR/install.sh" install > /root/install.log 2>&1; then
-cat /root/install.log
-print_error "Instalasi SlowDNS gagal (log: /root/install.log)"
+if ! printf '%s\n%s\n%s\n%s\n' "$lip" 53 "$ns_domain" "$SLOWDNS_UPSTREAM" | bash "$SLOWDNS_DIR/install.sh" install > /root/slowdns-install.log 2>&1; then
+cat /root/slowdns-install.log
+print_error "Instalasi SlowDNS gagal (log: /root/slowdns-install.log)"
 return 1
 fi
 
