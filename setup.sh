@@ -303,7 +303,8 @@ chmod +x /root/.acme.sh/acme.sh
 /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt
 /root/.acme.sh/acme.sh --issue -d $domain --standalone -k ec-256
 ~/.acme.sh/acme.sh --installcert -d $domain --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc
-chmod 777 /etc/xray/xray.key
+chgrp www-data /etc/xray/xray.key
+chmod 640 /etc/xray/xray.key
 print_success "SSL Certificate"
 }
 function make_folder_xray() {
@@ -353,7 +354,17 @@ print_install "Core Xray 1.8.24 Latest Version"
 domainSock_dir="/run/xray";! [ -d $domainSock_dir ] && mkdir  $domainSock_dir
 chown www-data.www-data $domainSock_dir
 latest_version="$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)"
-bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install -u www-data --version 1.8.24
+XRAY_VER="1.8.24"
+mkdir -p /run/xray /var/log/xray /usr/local/share/xray /usr/local/etc/xray
+cd /tmp
+rm -rf xray-pkg Xray-linux-64.zip
+wget -q "https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VER}/Xray-linux-64.zip" || { print_error "Gagal download Xray"; exit 1; }
+unzip -oq Xray-linux-64.zip -d xray-pkg
+install -m 755 xray-pkg/xray /usr/local/bin/xray
+install -m 644 xray-pkg/geoip.dat xray-pkg/geosite.dat /usr/local/share/xray/
+rm -rf xray-pkg Xray-linux-64.zip
+cd
+[ -x /usr/local/bin/xray ] || { print_error "Binary Xray tidak terpasang"; exit 1; }
 wget -O /etc/xray/config.json "${REPO}Cfg/config.json" >/dev/null 2>&1
 wget -O /etc/systemd/system/runn.service "${REPO}Fls/runn.service" >/dev/null 2>&1
 domain=$(cat /etc/xray/domain)
@@ -378,6 +389,7 @@ Documentation=https://github.com
 After=network.target nss-lookup.target
 [Service]
 User=www-data
+RuntimeDirectory=xray
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
@@ -389,6 +401,9 @@ LimitNPROC=65535
 [Install]
 WantedBy=multi-user.target
 EOF
+chown -R www-data:www-data /var/log/xray /run/xray
+chmod 644 /etc/xray/xray.crt /etc/xray/config.json
+/usr/local/bin/xray run -test -config /etc/xray/config.json || print_error "Config Xray tidak valid"
 print_success "Konfigurasi Packet"
 }
 function ssh(){
@@ -775,7 +790,7 @@ systemctl enable --now netfilter-persistent
 systemctl enable --now ws
 systemctl enable --now fail2ban
 systemctl enable --now udp-custom
-systemctl enable --NOW noobzvpns
+systemctl enable --now noobzvpns
 history -c
 echo "unset HISTFILE" >> /etc/profile
 cd
@@ -913,7 +928,6 @@ nginx_install
 base_package
 make_folder_xray
 pasang_domain
-password_default
 pasang_ssl
 install_xray
 ssh
