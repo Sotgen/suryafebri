@@ -12,6 +12,13 @@ green='\e[0;32m'
 ERROR="${RED}[ERROR]${FONT}"
 REPO="https://raw.githubusercontent.com/Sotgen/suryafebri/main/"
 
+# ================= KREDENSIAL CLOUDFLARE =================
+# API Token (izin: Zone Read + DNS Edit untuk domain Anda). CF_EMAIL harus kosong.
+# Bisa ditimpa lewat env: CF_KEY=... bash nameserver
+CF_EMAIL=""
+CF_KEY="${CF_KEY:-cfat_21Y2ZY8WJarm3VWF1PPTMwzHhddffpilWzv7v7ABbdc54f5e}"
+# =========================================================
+
 if [ "${EUID}" -ne 0 ]; then
 echo "Jalankan sebagai root"
 exit 1
@@ -46,7 +53,7 @@ NS_BASE=""
 NS_RESULT=""
 
 cf_load_cred() {
-[ -s "$CF_CONF" ] && . "$CF_CONF"
+[ -z "$CF_KEY" ] && [ -s "$CF_CONF" ] && . "$CF_CONF"
 if [[ -z $CF_KEY ]]; then
 read -p " Email Cloudflare            : " CF_EMAIL
 read -s -p " Global API Key / API Token : " CF_KEY; echo
@@ -89,10 +96,11 @@ for t in curl jq; do
 command -v $t >/dev/null 2>&1 || { apt-get update -y >/dev/null 2>&1; apt-get install -y $t >/dev/null 2>&1; }
 done
 cf_load_cred
-zone=$(cf_api GET "/zones?name=$base" | jq -r '.result[0].id // empty')
+zr=$(cf_api GET "/zones?name=$base")
+zone=$(echo "$zr" | jq -r '.result[0].id // empty')
 if [[ -z $zone ]]; then
-print_error "Zone $base tidak ditemukan / kredensial Cloudflare salah"
-rm -f "$CF_CONF"; return 1
+print_error "Zone $base tidak ditemukan: $(echo "$zr" | jq -r '.errors[0].message // "token/izin salah"')"
+return 1
 fi
 host="ns-${ns%.$base}.$base"
 echo -e " Membuat record DNS di Cloudflare ($base)..."
