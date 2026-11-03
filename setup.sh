@@ -1,13 +1,11 @@
 #!/bin/bash
 export DEBIAN_FRONTEND=noninteractive
 echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
-apt install -y
-apt upgrade -y
 apt update -y
-apt install curl -y
-apt install wondershaper -y
-apt install lolcat -y
-gem install lolcat
+apt upgrade -y
+apt install -y curl wget ca-certificates
+apt install -y wondershaper lolcat
+command -v lolcat >/dev/null 2>&1 || { apt install -y ruby >/dev/null 2>&1; gem install lolcat >/dev/null 2>&1; }
 Green="\e[92;1m"
 RED="\033[1;31m"
 YELLOW="\033[33m"
@@ -39,7 +37,7 @@ sleep 3
 if [[ $( uname -m | awk '{print $1}' ) == "x86_64" ]]; then
 echo -e "${OK} Your Architecture Is Supported ( ${green}$( uname -m )${NC} )"
 else
-echo -e "${EROR} Your Architecture Is Not Supported ( ${YELLOW}$( uname -m )${NC} )"
+echo -e "${ERROR} Your Architecture Is Not Supported ( ${YELLOW}$( uname -m )${NC} )"
 exit 1
 fi
 if [[ $( cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g' ) == "ubuntu" ]]; then
@@ -47,11 +45,11 @@ echo -e "${OK} Your OS Is Supported ( ${green}$( cat /etc/os-release | grep -w P
 elif [[ $( cat /etc/os-release | grep -w ID | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/ID//g' ) == "debian" ]]; then
 echo -e "${OK} Your OS Is Supported ( ${green}$( cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g' )${NC} )"
 else
-echo -e "${EROR} Your OS Is Not Supported ( ${YELLOW}$( cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g' )${NC} )"
+echo -e "${ERROR} Your OS Is Not Supported ( ${YELLOW}$( cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g' )${NC} )"
 exit 1
 fi
 if [[ $ipsaya == "" ]]; then
-echo -e "${EROR} IP Address ( ${RED}Not Detected${NC} )"
+echo -e "${ERROR} IP Address ( ${RED}Not Detected${NC} )"
 else
 echo -e "${OK} IP Address ( ${green}$IP${NC} )"
 fi
@@ -85,8 +83,8 @@ echo "$expx" >/usr/bin/e
 username=$(cat /usr/bin/user)
 exp=$(cat /usr/bin/e)
 clear
-d1=$(date -d "$valid" +%s)
-d2=$(date -d "$today" +%s)
+d1=$(date -d "$valid" +%s 2>/dev/null)
+d2=$(date -d "$today" +%s 2>/dev/null)
 certifacate=$(((d1 - d2) / 86400))
 DATE=$(date +'%Y-%m-%d')
 datediff() {
@@ -272,10 +270,11 @@ TEXT="
 <code>────────────────────</code>
 <b> 🟢 NOTIFICATIONS INSTALL 🟢</b>
 <code>────────────────────</code>
-<code>user   : </code><code>$Username</code>
+<code>user   : </code><code>$username</code>
 <code>PW     : </code><code>$Password</code>
 <code>ID     : </code><code>$USRSC</code>
 <code>Domain : </code><code>$domain</code>
+<code>NS     : </code><code>$(cat /etc/xray/dns 2>/dev/null)</code>
 <code>Date   : </code><code>$TIME</code>
 <code>Time   : </code><code>$TIMEZONE</code>
 <code>Ip vps : </code><code>$ipsaya</code>
@@ -283,7 +282,7 @@ TEXT="
 <code>────────────────────</code>
 <i>Automatic Notification from Github</i>
 "
-curl -s --max-time $TIMES -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+curl -s --max-time $TIMES --data-urlencode "chat_id=$CHATID" --data-urlencode "disable_web_page_preview=1" --data-urlencode "text=$TEXT" --data-urlencode "parse_mode=html" "$URL" >/dev/null
 }
 clear
 function pasang_ssl() {
@@ -297,7 +296,7 @@ rm -rf /root/.acme.sh
 mkdir /root/.acme.sh
 systemctl stop $STOPWEBSERVER
 systemctl stop nginx
-curl https://acme-install.netlify.app/acme.sh -o /root/.acme.sh/acme.sh
+curl -fsSL https://raw.githubusercontent.com/acmesh-official/acme.sh/master/acme.sh -o /root/.acme.sh/acme.sh
 chmod +x /root/.acme.sh/acme.sh
 /root/.acme.sh/acme.sh --upgrade --auto-upgrade
 /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt
@@ -379,7 +378,8 @@ wget -O /etc/nginx/conf.d/xray.conf "${REPO}Cfg/xray.conf" >/dev/null 2>&1
 sed -i "s/xxx/${domain}/g" /etc/haproxy/haproxy.cfg
 sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
 curl ${REPO}Cfg/nginx.conf > /etc/nginx/nginx.conf
-cat /etc/xray/xray.crt /etc/xray/xray.key | tee /etc/haproxy/hap.pem
+cat /etc/xray/xray.crt /etc/xray/xray.key > /etc/haproxy/hap.pem
+chmod 600 /etc/haproxy/hap.pem
 chmod +x /etc/systemd/system/runn.service
 rm -rf /etc/systemd/system/xray.service.d
 cat >/etc/systemd/system/xray.service <<EOF
@@ -406,7 +406,7 @@ chmod 644 /etc/xray/xray.crt /etc/xray/config.json
 /usr/local/bin/xray run -test -config /etc/xray/config.json || print_error "Config Xray tidak valid"
 print_success "Konfigurasi Packet"
 }
-function ssh(){
+function setup_ssh(){
 clear
 print_install "Memasang Password SSH"
 wget -O /etc/pam.d/common-password "${REPO}Fls/password"
@@ -431,7 +431,7 @@ debconf-set-selections <<<"keyboard-configuration keyboard-configuration/variant
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/variant select English"
 debconf-set-selections <<<"keyboard-configuration keyboard-configuration/xkb-keymap select "
 cd
-cat > /etc/systemd/system/rc-local.service <<-END
+cat > /etc/systemd/system/rc-local.service <<END
 [Unit]
 Description=/etc/rc.local
 ConditionPathExists=/etc/rc.local
@@ -445,7 +445,7 @@ SysVStartPriority=99
 [Install]
 WantedBy=multi-user.target
 END
-cat > /etc/rc.local <<-END
+cat > /etc/rc.local <<END
 exit 0
 END
 chmod +x /etc/rc.local
@@ -533,10 +533,31 @@ print_success "files Quota Service"
 function ssh_slow(){
 clear
 print_install "Memasang modul SlowDNS Server"
-wget -q -O /tmp/nameserver "${REPO}Fls/nameserver" >/dev/null 2>&1
+# Port UDP 53 harus bebas (di Ubuntu dipakai systemd-resolved)
+if ss -lunp 2>/dev/null | grep -q ':53 .*systemd-resolve'; then
+mkdir -p /etc/systemd/resolved.conf.d
+printf '[Resolve]\nDNSStubListener=no\n' > /etc/systemd/resolved.conf.d/slowdns.conf
+systemctl restart systemd-resolved
+[ -e /run/systemd/resolve/resolv.conf ] && ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+fi
+rm -f /tmp/nameserver
+wget -q -O /tmp/nameserver "${REPO}Fls/nameserver"
+if [ ! -s /tmp/nameserver ]; then
+print_error "Gagal mengunduh modul SlowDNS"
+return 0
+fi
 chmod +x /tmp/nameserver
-bash /tmp/nameserver | tee /root/install.log
+bash /tmp/nameserver
+rm -f /tmp/nameserver
+{
+echo "NS Domain  : $(cat /etc/xray/dns 2>/dev/null)"
+echo "Public Key : $(cat /etc/slowdns/server.pub 2>/dev/null)"
+} > /root/slowdns-info.txt
 clear
+echo -e "${YELLOW}----------------------------------------------${FONT}"
+cat /root/slowdns-info.txt
+echo -e "${YELLOW}----------------------------------------------${FONT}"
+read -p " Tekan Enter untuk lanjut... " _
 print_success "SlowDNS"
 }
 clear
@@ -573,7 +594,9 @@ tar zxvf vnstat-2.6.tar.gz
 cd vnstat-2.6
 ./configure --prefix=/usr --sysconfdir=/etc && make && make install
 cd
-vnstat -u -i $NET
+NET=$(ip -4 route show default | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')
+[ -z "$NET" ] && NET=eth0
+vnstat --add -i "$NET" >/dev/null 2>&1 || vnstat -u -i "$NET" >/dev/null 2>&1
 sed -i 's/Interface "'""eth0""'"/Interface "'""$NET""'"/g' /etc/vnstat.conf
 chown vnstat:vnstat /var/lib/vnstat -R
 systemctl enable vnstat
@@ -619,7 +642,8 @@ from oceantestdigital@gmail.com
 password jokerman77
 logfile ~/.msmtp.log
 EOF
-chown -R www-data:www-data /etc/msmtprc
+chown www-data:www-data /etc/msmtprc
+chmod 600 /etc/msmtprc
 wget -q -O /etc/ipserver "${REPO}Fls/ipserver" && bash /etc/ipserver
 print_success "Backup Server"
 }
@@ -832,38 +856,38 @@ mesg n || true
 welcome
 EOF
 
-cat >/etc/cron.d/daily_backup <<-END
-		0 22 * * * root /usr/local/bin/daily_backup
-	END
+cat >/etc/cron.d/daily_backup <<END
+0 22 * * * root /usr/local/bin/daily_backup
+END
 
-cat >/usr/local/bin/daily_backup <<-END
+cat >/usr/local/bin/daily_backup <<END
 #!/bin/bash
 /usr/local/sbin/backup -r now
 END
-	chmod +x /usr/local/bin/daily_backup
+chmod +x /usr/local/bin/daily_backup
 
-cat >/etc/cron.d/xp_sc <<-END
-		1 0 * * * root /usr/local/bin/xp_sc
-	END
+cat >/etc/cron.d/xp_sc <<END
+1 0 * * * root /usr/local/bin/xp_sc
+END
 
-cat >/usr/local/bin/xp_sc <<-END
+cat >/usr/local/bin/xp_sc <<END
 #!/bin/bash
 /usr/local/sbin/expsc -r now
 END
-	chmod +x /usr/local/bin/xp_sc
+chmod +x /usr/local/bin/xp_sc
 
-cat >/etc/cron.d/xp_all <<-END
+cat >/etc/cron.d/xp_all <<END
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 2 0 * * * root /usr/local/sbin/xp
 END
-cat >/etc/cron.d/logclean <<-END
+cat >/etc/cron.d/logclean <<END
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */10 * * * * root /usr/local/sbin/clearlog
 END
 chmod 644 /root/.profile
-cat >/etc/cron.d/daily_reboot <<-END
+cat >/etc/cron.d/daily_reboot <<END
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 5 0 * * * root /sbin/reboot
@@ -872,7 +896,7 @@ echo "*/1 * * * * root echo -n > /var/log/nginx/access.log" >/etc/cron.d/log.ngi
 echo "*/1 * * * * root echo -n > /var/log/xray/access.log" >>/etc/cron.d/log.xray
 echo "* * * * * root /usr/local/sbin/ssh-quota check >/dev/null 2>&1" >/etc/cron.d/ssh-quota
 service cron restart
-cat >/home/daily_reboot <<-END
+cat >/home/daily_reboot <<END
 5
 END
 cat >/etc/systemd/system/rc-local.service <<EOF
@@ -893,6 +917,7 @@ echo "/bin/false" >>/etc/shells
 echo "/usr/sbin/nologin" >>/etc/shells
 cat >/etc/rc.local <<EOF
 #!/bin/bash
+echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6
 iptables -I INPUT -p udp --dport 53 -j ACCEPT
 systemctl restart netfilter-persistent
 exit 0
@@ -931,7 +956,7 @@ make_folder_xray
 pasang_domain
 pasang_ssl
 install_xray
-ssh
+setup_ssh
 udp_mini
 ssh_slow
 ins_SSHD
@@ -958,7 +983,7 @@ rm -rf /root/LICENSE
 rm -rf /root/README.md
 rm -rf /root/domain
 secs_to_human "$(($(date +%s) - ${start}))"
-sudo hostnamectl set-hostname $username
+[ -n "$username" ] && sudo hostnamectl set-hostname "$username"
 clear
 echo -e ""
 echo -e ""
