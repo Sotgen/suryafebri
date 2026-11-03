@@ -35,6 +35,108 @@ sleep 2
 fi
 }
 
+# ================= CLOUDFLARE + PILIH SUBDOMAIN =================
+# Kredensial TIDAK ditulis di skrip. Diambil dari env CF_EMAIL/CF_KEY,
+# atau dari /root/.cf-slowdns.conf (chmod 600), atau ditanya sekali lalu disimpan.
+CF_DOMAINS=("alwaristore.biz.id" "suryaconfig.biz.id")
+CF_CONF="/root/.cf-slowdns.conf"
+DEFAULT_LABEL="dns.suryates"
+CF_AUTO=0
+NS_BASE=""
+NS_RESULT=""
+
+cf_load_cred() {
+[ -s "$CF_CONF" ] && . "$CF_CONF"
+if [[ -z $CF_KEY ]]; then
+read -p " Email Cloudflare            : " CF_EMAIL
+read -s -p " Global API Key / API Token : " CF_KEY; echo
+( umask 077; printf 'CF_EMAIL=%q\nCF_KEY=%q\n' "$CF_EMAIL" "$CF_KEY" > "$CF_CONF" )
+fi
+}
+
+cf_api() { # method path [json]
+local m=$1 p=$2 d=$3
+local args=(-sS -X "$m" -H "Content-Type: application/json")
+if [[ -n $CF_EMAIL ]]; then
+args+=(-H "X-Auth-Email: $CF_EMAIL" -H "X-Auth-Key: $CF_KEY")
+else
+args+=(-H "Authorization: Bearer $CF_KEY")
+fi
+[[ -n $d ]] && args+=(--data "$d")
+curl "${args[@]}" "https://api.cloudflare.com/client/v4$p"
+}
+
+cf_upsert() { # zone type name content
+local zone=$1 type=$2 name=$3 content=$4 rid body res
+rid=$(cf_api GET "/zones/$zone/dns_records?type=$type&name=$name" | jq -r '.result[0].id // empty')
+body=$(jq -nc --arg t "$type" --arg n "$name" --arg c "$content" \
+'{type:$t,name:$n,content:$c,ttl:120} + (if $t=="A" then {proxied:false} else {} end)')
+if [[ -n $rid ]]; then
+res=$(cf_api PUT "/zones/$zone/dns_records/$rid" "$body")
+else
+res=$(cf_api POST "/zones/$zone/dns_records" "$body")
+fi
+if [[ $(echo "$res" | jq -r '.success') != "true" ]]; then
+print_error "Cloudflare $type $name gagal: $(echo "$res" | jq -r '.errors[0].message // "respon tidak dikenal"')"
+return 1
+fi
+echo -e " ${Green}OK${FONT} $type $name -> $content"
+}
+
+cf_apply() { # ns_domain base ip
+local ns=$1 base=$2 ip=$3 zone host
+for t in curl jq; do
+command -v $t >/dev/null 2>&1 || { apt-get update -y >/dev/null 2>&1; apt-get install -y $t >/dev/null 2>&1; }
+done
+cf_load_cred
+zone=$(cf_api GET "/zones?name=$base" | jq -r '.result[0].id // empty')
+if [[ -z $zone ]]; then
+print_error "Zone $base tidak ditemukan / kredensial Cloudflare salah"
+rm -f "$CF_CONF"; return 1
+fi
+host="ns-${ns%.$base}.$base"
+echo -e " Membuat record DNS di Cloudflare ($base)..."
+cf_upsert "$zone" A "$host" "$ip" || return 1
+cf_upsert "$zone" NS "$ns" "$host" || return 1
+CF_HOST="$host"
+}
+
+pilih_ns() {
+local i choice base label
+echo -e " Pilih domain induk:"
+for i in "${!CF_DOMAINS[@]}"; do echo -e "   $((i+1)). ${CF_DOMAINS[$i]}"; done
+echo -e "   0. Ketik domain NS manual (tanpa Cloudflare)"
+while true; do
+read -p " Pilihan [1] : " choice
+choice=${choice:-1}
+[[ $choice =~ ^[0-9]+$ ]] && (( choice <= ${#CF_DOMAINS[@]} )) && break
+print_error "Pilihan tidak valid"
+done
+if [[ $choice -eq 0 ]]; then
+CF_AUTO=0
+while true; do
+read -p " Masukkan domain NS lengkap : " NS_RESULT
+NS_RESULT=${NS_RESULT,,}; NS_RESULT=${NS_RESULT// /}
+[[ $NS_RESULT =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$ ]] && break
+print_error "Domain tidak valid, coba lagi"
+done
+return 0
+fi
+base=${CF_DOMAINS[$((choice-1))]}
+while true; do
+read -p " Subdomain NS [${DEFAULT_LABEL}] (contoh: ns1 / dns.suryates) : " label
+label=${label:-$DEFAULT_LABEL}
+label=${label,,}; label=${label// /}
+label=${label%.$base}
+[[ $label =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$ ]] && break
+print_error "Subdomain tidak valid, coba lagi"
+done
+NS_BASE=$base
+NS_RESULT="$label.$base"
+CF_AUTO=1
+}
+# ================================================================
+
 function ssh_slow(){
 clear
 print_install "Memasang SlowDNS Server"
@@ -50,7 +152,7 @@ print_install "Memasang SlowDNS Server"
 : "${SLOWDNS_KEEP_OLD_KEY:=1}"
 # =============================================================
 
-local ns_old ns_domain ns_main ns_sugg lip f svc ganti
+local ns_old ns_domain ns_main lip f svc ganti
 ns_old=$(cat /etc/xray/dns 2>/dev/null)
 ns_domain=""
 ns_main=$(cat /etc/xray/domain 2>/dev/null)
@@ -66,21 +168,15 @@ ns_domain=$ns_old
 fi
 fi
 if [[ -z $ns_domain ]]; then
-ns_sugg="$SLOWDNS_DEFAULT_NS"
 echo -e " Domain utama : ${ns_main:-belum diisi}"
-echo -e " Tekan Enter untuk memakai default NS: $ns_sugg"
 while true; do
-read -p " Masukkan domain NS [${ns_sugg}] : " ns_domain
-ns_domain=${ns_domain:-$ns_sugg}
-ns_domain=${ns_domain,,}
+pilih_ns
+ns_domain=$NS_RESULT
 if [[ -n $ns_main && $ns_domain == "$ns_main" ]]; then
 print_error "Domain NS tidak boleh sama dengan domain utama ($ns_main). Pakai domain NS khusus SlowDNS."
 continue
 fi
-if [[ $ns_domain =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ ]]; then
 break
-fi
-print_error "Domain tidak valid, coba lagi"
 done
 fi
 echo -e " Domain NS dipakai  : $ns_domain"
@@ -89,6 +185,10 @@ lip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src
 if [[ -z $lip ]]; then
 print_error "IP VPS tidak terdeteksi"
 return 1
+fi
+
+if [[ $CF_AUTO -eq 1 ]]; then
+cf_apply "$ns_domain" "$NS_BASE" "$lip" || return 1
 fi
 
 # --- Hapus instalasi SlowDNS lama ---
@@ -162,8 +262,13 @@ echo -e "${YELLOW}----------------------------------------------${FONT}"
 echo -e " NS Domain  : $ns_domain"
 echo -e " Public Key : $(cat $SLOWDNS_DIR/server.pub)"
 echo -e " Port       : UDP 53  (buka di firewall VPS & panel provider)"
+if [[ $CF_AUTO -eq 1 ]]; then
+echo -e " Record DNS : A   $CF_HOST  ->  $lip   (otomatis, DNS only)"
+echo -e "              NS  $ns_domain  ->  $CF_HOST   (otomatis)"
+else
 echo -e " Record DNS : A   ns.<domain>  ->  $lip   (DNS only, bukan proxied)"
 echo -e "              NS  $ns_domain  ->  ns.<domain>"
+fi
 echo -e "${YELLOW}----------------------------------------------${FONT}"
 echo -e " Cek domain aktif:"
 ps aux | grep "[s]lowdns -udp" | awk '{print "   " $NF " <- " $(NF-1)}'
