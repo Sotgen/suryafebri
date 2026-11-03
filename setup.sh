@@ -210,16 +210,13 @@ sudo apt-get remove --purge ufw firewalld apache2 -y
 sudo apt-get install -y --no-install-recommends software-properties-common
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-apt-get -y install \
-  gawk iptables iptables-persistent netfilter-persistent figlet ruby libxml-parser-perl \
-  squid nmap screen curl jq bzip2 gzip coreutils rsyslog iftop htop zip unzip net-tools \
-  sed gnupg gnupg1 bc apt-transport-https build-essential dirmngr libxml-parser-perl \
-  neofetch lsof openssl openvpn easy-rsa fail2ban tmux socat cron bash-completion \
-  ntpdate xz-utils gnupg2 dnsutils lsb-release chrony libnss3-dev libnspr4-dev pkg-config libpam0g-dev \
-  libcap-ng-dev libcap-ng-utils libselinux1-dev libcurl4-openssl-dev flex bison make \
-  libnss3-tools libevent-dev xl2tpd apt git speedtest-cli p7zip-full libjpeg-dev \
-  zlib1g-dev python3-full shc build-essential nodejs nginx php \
-  php-fpm php-cli php-mysql p7zip-full squid libcurl4-openssl-dev lsb-release 
+PKGS="gawk iptables iptables-persistent netfilter-persistent figlet ruby libxml-parser-perl squid nmap screen curl jq bzip2 gzip coreutils rsyslog iftop htop zip unzip net-tools sed gnupg gnupg1 bc apt-transport-https build-essential dirmngr libxml-parser-perl neofetch lsof openssl openvpn easy-rsa fail2ban tmux socat cron bash-completion ntpdate xz-utils gnupg2 dnsutils lsb-release chrony libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev libcap-ng-utils libselinux1-dev libcurl4-openssl-dev flex bison make libnss3-tools libevent-dev xl2tpd apt git speedtest-cli p7zip-full libjpeg-dev zlib1g-dev python3-full shc build-essential nodejs nginx php php-fpm php-cli php-mysql p7zip-full squid libcurl4-openssl-dev lsb-release"
+apt-get -y install $PKGS || {
+echo -e "${ERROR} Ada paket yang tidak tersedia, memasang satu per satu..."
+for pkg in $PKGS; do
+apt-get -y install $pkg >/dev/null 2>&1 || echo "  - dilewati (tidak tersedia): $pkg"
+done
+}
 apt purge -y apache2 stunnel4 stunnel
 sudo systemctl enable chrony --now
 chronyc sourcestats -v
@@ -446,6 +443,7 @@ SysVStartPriority=99
 WantedBy=multi-user.target
 END
 cat > /etc/rc.local <<END
+#!/bin/bash
 exit 0
 END
 chmod +x /etc/rc.local
@@ -793,14 +791,9 @@ print_success "NOOBZVPNS BY NEWBIE STORE"
 function ins_restart(){
 clear
 print_install "Restarting  All Packet"
-/etc/init.d/nginx restart
-/etc/init.d/openvpn restart
-/etc/init.d/ssh restart
-/etc/init.d/dropbear restart
-/etc/init.d/fail2ban restart
-/etc/init.d/vnstat restart
-systemctl restart haproxy
-/etc/init.d/cron restart
+for svc in nginx openvpn ssh dropbear fail2ban vnstat haproxy cron; do
+systemctl restart $svc >/dev/null 2>&1 || echo -e "${ERROR} Gagal restart $svc (cek: systemctl status $svc)"
+done
 systemctl daemon-reload
 systemctl start netfilter-persistent
 systemctl enable --now nginx
