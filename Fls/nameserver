@@ -1,6 +1,7 @@
 #!/bin/bash
 # Fls/nameserver -- pemasang SlowDNS (paket slowdns-linux-amd64.tar.gz dari repo ini).
-# Teks biasa, tanpa kunci/kredensial tertanam, tanpa unduhan dari repo pihak lain.
+# Versi perbaikan: default domain NS = dns.suryates.alwaristore.biz.id
+# (bisa diganti lewat variabel SLOWDNS_DEFAULT_NS atau diketik manual di prompt).
 Green="\e[92;1m"
 RED="\033[1;31m"
 YELLOW="\033[33m"
@@ -39,21 +40,20 @@ clear
 print_install "Memasang SlowDNS Server"
 
 # ================= PENGATURAN (ubah di sini) =================
-# File slowdns-linux-amd64.tar.gz di root repo Anda (${REPO} = .../Sotgen/suryafebri/main/).
 : "${SLOWDNS_URL:=${REPO}slowdns-linux-amd64.tar.gz}"
-# Sidik jari (SHA256) file di atas, supaya file yang berubah/diganti orang lain ditolak.
 : "${SLOWDNS_SHA256:=6aa42455cd142953270a342e3c24c9c946fdc4ef3cad1e5c02f27711ffc6ad41}"
 : "${SLOWDNS_DIR:=/root/slowdns}"
-# Tujuan SlowDNS (SSH di VPS ini). Ubah kalau SSH bukan di port 22.
 : "${SLOWDNS_UPSTREAM:=127.0.0.1:22}"
-# 1 = pakai ulang key lama (/etc/slowdns/server.key) supaya akun lama tetap jalan.
-# 0 = buat key baru (public key berubah, user harus ganti public key di aplikasi).
-: "${SLOWDNS_KEEP_OLD_KEY:=0}"
+# Domain NS default (tekan Enter di prompt untuk memakainya)
+: "${SLOWDNS_DEFAULT_NS:=dns.suryates.alwaristore.biz.id}"
+# 1 = pakai ulang key lama, 0 = buat key baru (pubkey berubah)
+: "${SLOWDNS_KEEP_OLD_KEY:=1}"
 # =============================================================
 
 local ns_old ns_domain ns_main ns_sugg lip f svc ganti
 ns_old=$(cat /etc/xray/dns 2>/dev/null)
 ns_domain=""
+ns_main=$(cat /etc/xray/domain 2>/dev/null)
 echo -e ""
 echo -e "${YELLOW}----------------------------------------------${FONT}"
 echo -e "              DOMAIN NS SLOWDNS"
@@ -66,16 +66,15 @@ ns_domain=$ns_old
 fi
 fi
 if [[ -z $ns_domain ]]; then
-ns_main=$(cat /etc/xray/domain 2>/dev/null)
-ns_sugg=""
-[[ -n $ns_main ]] && ns_sugg="dns.$ns_main"
-echo -e " Saran: pakai subdomain dari domain utama (tekan Enter untuk memakainya)"
+ns_sugg="$SLOWDNS_DEFAULT_NS"
+echo -e " Domain utama : ${ns_main:-belum diisi}"
+echo -e " Tekan Enter untuk memakai default NS: $ns_sugg"
 while true; do
-read -p " Masukkan domain NS baru [${ns_sugg}] : " ns_domain
+read -p " Masukkan domain NS [${ns_sugg}] : " ns_domain
 ns_domain=${ns_domain:-$ns_sugg}
 ns_domain=${ns_domain,,}
 if [[ -n $ns_main && $ns_domain == "$ns_main" ]]; then
-print_error "Domain NS tidak boleh sama persis dengan domain utama ($ns_main). Pakai subdomain, misal dns.$ns_main"
+print_error "Domain NS tidak boleh sama dengan domain utama ($ns_main). Pakai domain NS khusus SlowDNS."
 continue
 fi
 if [[ $ns_domain =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$ ]]; then
@@ -86,14 +85,13 @@ done
 fi
 echo -e " Domain NS dipakai  : $ns_domain"
 
-# IP VPS yang dipakai keluar (dipakai sebagai listener UDP 53, menghindari bentrok dengan systemd-resolved)
 lip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}')
 if [[ -z $lip ]]; then
 print_error "IP VPS tidak terdeteksi"
 return 1
 fi
 
-# --- Hapus instalasi SlowDNS yang lama (dnstt: service server & client) ---
+# --- Hapus instalasi SlowDNS lama ---
 for svc in server client; do
 f=/etc/systemd/system/$svc.service
 if [ -f "$f" ] && grep -qE "dnstt|slowdns" "$f"; then
@@ -101,13 +99,17 @@ systemctl disable --now $svc >/dev/null 2>&1
 rm -f "$f"
 fi
 done
-# Kalau sudah pernah pasang versi baru: hentikan dulu & pakai pengaturan baru (key tetap dipertahankan)
 if [ -f /etc/systemd/system/slowdns.service ]; then
 systemctl stop slowdns >/dev/null 2>&1
+# amankan key lama sebelum uninstall
+if [ "$SLOWDNS_KEEP_OLD_KEY" = "1" ] && [ -s "$SLOWDNS_DIR/server.key" ] && [ -s "$SLOWDNS_DIR/server.pub" ]; then
+mkdir -p /etc/slowdns
+install -m 0600 "$SLOWDNS_DIR/server.key" /etc/slowdns/server.key
+install -m 0644 "$SLOWDNS_DIR/server.pub" /etc/slowdns/server.pub
+fi
 [ -f "$SLOWDNS_DIR/install.sh" ] && bash "$SLOWDNS_DIR/install.sh" uninstall >/dev/null 2>&1
 rm -f "$SLOWDNS_DIR/slowdns.env"
 fi
-# Aturan lama 53 -> 5300 (milik SlowDNS lama) dibuang; versi baru langsung memakai UDP 53.
 while iptables -t nat -D PREROUTING -p udp --dport 53 -j REDIRECT --to-ports 5300 2>/dev/null; do :; done
 sed -i '/--to-ports 5300/d;/--dport 5300/d' /etc/rc.local 2>/dev/null
 systemctl daemon-reload
@@ -135,17 +137,23 @@ rm -f /tmp/slowdns.tar.gz
 chown root:root "$SLOWDNS_DIR" "$SLOWDNS_DIR/slowdns" "$SLOWDNS_DIR/install.sh"
 chmod 755 "$SLOWDNS_DIR" "$SLOWDNS_DIR/slowdns" "$SLOWDNS_DIR/install.sh"
 
-# --- Jalankan installer dengan jawaban otomatis: IP, port, domain, tujuan ---
+# --- Installer otomatis: IP, port, domain, tujuan ---
 if ! printf '%s\n%s\n%s\n%s\n' "$lip" 53 "$ns_domain" "$SLOWDNS_UPSTREAM" | bash "$SLOWDNS_DIR/install.sh" install > /root/slowdns-install.log 2>&1; then
 cat /root/slowdns-install.log
 print_error "Instalasi SlowDNS gagal (log: /root/slowdns-install.log)"
 return 1
 fi
 
+# --- Verifikasi: domain di slowdns.env harus sama dengan yang dipilih ---
+if [ -f "$SLOWDNS_DIR/slowdns.env" ]; then
+sed -i "s|^SLOWDNS_DOMAIN=.*|SLOWDNS_DOMAIN=\"${ns_domain}\"|" "$SLOWDNS_DIR/slowdns.env"
+systemctl daemon-reload
+systemctl restart slowdns
+fi
+
 # --- Kompatibilitas dengan menu/skrip lama ---
 mkdir -p /etc/xray /etc/slowdns
 echo "$ns_domain" > /etc/xray/dns
-# Salinan asli (bukan symlink) supaya menu & backup yang membaca /etc/slowdns tetap bekerja.
 [ -f "$SLOWDNS_DIR/server.pub" ] && install -m 0644 "$SLOWDNS_DIR/server.pub" /etc/slowdns/server.pub
 [ -f "$SLOWDNS_DIR/server.key" ] && install -m 0600 "$SLOWDNS_DIR/server.key" /etc/slowdns/server.key
 
@@ -154,8 +162,11 @@ echo -e "${YELLOW}----------------------------------------------${FONT}"
 echo -e " NS Domain  : $ns_domain"
 echo -e " Public Key : $(cat $SLOWDNS_DIR/server.pub)"
 echo -e " Port       : UDP 53  (buka di firewall VPS & panel provider)"
-echo -e " Buat record DNS : NS  $ns_domain  ->  ${ns_main:-$(cat /etc/xray/domain 2>/dev/null)}"
+echo -e " Record DNS : A   ns.<domain>  ->  $lip   (DNS only, bukan proxied)"
+echo -e "              NS  $ns_domain  ->  ns.<domain>"
 echo -e "${YELLOW}----------------------------------------------${FONT}"
+echo -e " Cek domain aktif:"
+ps aux | grep "[s]lowdns -udp" | awk '{print "   " $NF " <- " $(NF-1)}'
 sleep 3
 print_success "SlowDNS"
 }
