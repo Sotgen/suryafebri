@@ -151,7 +151,7 @@ print_install "Memasang SlowDNS Server"
 
 # ================= PENGATURAN (ubah di sini) =================
 : "${SLOWDNS_URL:=${REPO}slowdns-linux-amd64.tar.gz}"
-: "${SLOWDNS_SHA256:=c390101005e3dbb7c661f4fe3977ced8849d24a30f8375f285d72c89e938de37}"
+: "${SLOWDNS_SHA256:=gantilagi}"
 : "${SLOWDNS_DIR:=/root/slowdns}"
 : "${SLOWDNS_UPSTREAM:=127.0.0.1:22}"
 # Domain NS default (tekan Enter di prompt untuk memakainya)
